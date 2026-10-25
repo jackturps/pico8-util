@@ -1,4 +1,4 @@
---pin map, see readme
+--pin map
 lb_base=0x5f80
 lb_p_req=lb_base+0
 lb_p_status=lb_base+1
@@ -9,12 +9,11 @@ lb_p_name=lb_base+5
 lb_p_score=lb_base+21
 lb_p_magic=lb_base+28
 lb_p_ver=lb_base+29
-lb_p_sort=lb_base+30
 
 lb_magic_val=0x8b
 lb_ver_val=1
 
---requests, lua writes
+--requests, PICO-8 writes
 lb_rq_none=0
 lb_rq_submit=1
 lb_rq_fetch=2
@@ -28,30 +27,18 @@ lb_req_of={
 	row=lb_rq_row,
 }
 
---status, shell writes
+--status, harness writes
 lb_sv_idle=0
 lb_sv_ok=2
 lb_sv_err=3
 
 function lb_init()
 	lb_board={}
-	lb_next={}
-	lb_name=nil
-	lb_msg=""
-	lb_job=""
-	lb_busy=false
 	lb_pending={}
-	lb_wait=0
-	lb_row=0
-	lb_rows=0
 
-	lb_magic=peek(lb_p_magic)
 	lb_ver=peek(lb_p_ver)
-	--1=descending -1=ascending.
-	lb_sign=sgn(1-2*peek(lb_p_sort))
 
-	if lb_magic!=lb_magic_val then
-  --not in harness
+	if peek(lb_p_magic)!=lb_magic_val then
 		lb_state="disabled"
 		return
 	end
@@ -99,7 +86,6 @@ end
 function lb_send(p)
 	if p.job=="submit" then
 		poke4(lb_p_score,p.score)
-		--kept so the reply can place it
 		lb_sent_score=p.score
 	end
 	if p.job=="fetch" and lb_state=="error" then
@@ -133,8 +119,8 @@ function lb_free()
 end
 
 --a request died. we only fall back to
---"error" if we have never had a board:
---once ready we keep showing the old one.
+--"error" if we have never had a board
+--(otherwise we just show the old one).
 function lb_failed(why)
 	lb_msg=why
 	lb_free()
@@ -171,17 +157,17 @@ function lb_update()
 		return
 	end
 
-	--job landed, process it
+	--got a job, process it
 	lb_free()
 	if lb_job=="whoami" then
 		lb_name=lb_read_name()
 	elseif lb_job=="submit" then
-  --submit may pickup updated username
+		--submit might pickup an updated username
 		lb_name=lb_read_name()
 		lb_insert(lb_name,lb_sent_score)
 	elseif lb_job=="fetch" then
 		lb_rows=peek(lb_p_count)
-  --rows arrive one by one, double buffer
+		--rows arrive one by one, double buffer
 		lb_next={}
 		lb_row=0
 		if lb_rows>0 then
@@ -198,7 +184,7 @@ function lb_update()
 		if lb_row<lb_rows then
 			lb_ask_row()
 		else
-   --done, swap double buffer
+			--done, swap double buffer
 			lb_board=lb_next
 			lb_state="ready"
 		end
@@ -214,12 +200,11 @@ function lb_insert(name,score)
 		return false
 	end
 
-	local s=score*lb_sign
 	local pos
 
 	for idx=1,#lb_board do
 		local row=lb_board[idx]
-		if not pos and s>row.score*lb_sign then
+		if not pos and score>row.score then
 			pos=idx
 		end
 		if row.name==name then

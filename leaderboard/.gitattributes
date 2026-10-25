@@ -1,0 +1,2 @@
+# keep lf so setup runs on windows.
+* text=auto eol=lf
